@@ -163,7 +163,7 @@ export default function Home() {
       }
     };
 
-    const timer = window.setInterval(scroll, 40);
+    const timer = window.setInterval(scroll, 16);
     return () => window.clearInterval(timer);
   }, [isPromptPlaying, speed]);
 

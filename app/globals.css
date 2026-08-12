@@ -147,6 +147,7 @@ input:focus-visible {
   scrollbar-width: none;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
   cursor: ns-resize;
 }
 
