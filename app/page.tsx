@@ -311,7 +311,12 @@ export default function Home() {
       >
         <span className="eye-line left" aria-hidden="true" />
         <span className="eye-line right" aria-hidden="true" />
-        <div ref={promptRef} className="prompt-scroll">
+        <div
+          ref={promptRef}
+          className="prompt-scroll"
+          onPointerDown={() => setIsPromptPlaying(false)}
+          onWheel={() => setIsPromptPlaying(false)}
+        >
           <p
             style={{
               fontSize: `${fontSize}px`,
@@ -370,14 +375,14 @@ export default function Home() {
             {shareMessage && <p className="share-message" role="status">{shareMessage}</p>}
             <div className="preview-actions">
               <button type="button" onClick={() => setRecordingUrl(null)}>
-                Вернуться к съёмке
+                Вернуться
               </button>
               <a className="download-button" href={recordingUrl} download={recordingFile?.name ?? "orator-video.webm"}>
-                Скачать файл
+                Скачать
               </a>
               {canShareRecording && (
                 <button type="button" className="share-button" onClick={() => void shareRecording()}>
-                  Сохранить / поделиться
+                  Сохранить
                 </button>
               )}
             </div>
@@ -457,7 +462,6 @@ export default function Home() {
                 resetPrompt();
               }}
               placeholder="Вставьте или напишите ваш текст…"
-              autoFocus
             />
             <div className="editor-meta">
               <span>{wordCount} слов</span>
