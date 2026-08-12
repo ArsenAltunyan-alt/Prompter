@@ -10,9 +10,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Оратор — мобильный видеосуфлёр",
+  title: "Суфлер",
   description:
-    "Записывайте видео с камерой и читайте плавно движущийся текст прямо у объектива.",
+    "Записывайте видео с камерой и читайте",
 };
 
 export default function RootLayout({

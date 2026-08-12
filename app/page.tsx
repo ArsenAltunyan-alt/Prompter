@@ -7,7 +7,7 @@ type PanelMode = "closed" | "script" | "settings";
 type FacingMode = "user" | "environment";
 
 const DEFAULT_SCRIPT =
-  "Добро пожаловать! Говорите спокойно и смотрите прямо в объектив.\n\nТекст будет плавно двигаться перед камерой — так вы сможете сохранить естественный зрительный контакт.\n\nСделайте небольшую паузу между мыслями. Улыбнитесь. Вы готовы начать запись.";
+  "Добро пожаловать! Говорите спокойно и смотрите прямо в объектив.\n\nТекст будет плавно двигаться перед камерой - так вы сможете сохранить естественный зрительный контакт.\n\nСделайте небольшую паузу между мыслями. Улыбнитесь. Вы готовы начать запись.";
 
 const STORAGE_KEY = "orator-teleprompter";
 
@@ -42,6 +42,9 @@ export default function Home() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [recordingFile, setRecordingFile] = useState<File | null>(null);
+  const [canShareRecording, setCanShareRecording] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -197,9 +200,15 @@ export default function Home() {
       URL.revokeObjectURL(recordingUrlRef.current);
       recordingUrlRef.current = null;
       setRecordingUrl(null);
+      setRecordingFile(null);
+      setCanShareRecording(false);
+      setShareMessage("");
     }
 
     const supportedType = [
+      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+      "video/mp4;codecs=avc1,mp4a.40.2",
+      "video/mp4",
       "video/webm;codecs=vp9,opus",
       "video/webm;codecs=vp8,opus",
       "video/webm",
@@ -214,12 +223,27 @@ export default function Home() {
       if (event.data.size > 0) chunksRef.current.push(event.data);
     };
     recorder.onstop = () => {
+      const recordedType = recorder.mimeType || supportedType || "video/webm";
+      const extension = recordedType.toLowerCase().includes("mp4") ? "mp4" : "webm";
       const blob = new Blob(chunksRef.current, {
-        type: recorder.mimeType || "video/webm",
+        type: recordedType,
       });
-      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const file = new File([blob], `orator-${timestamp}.${extension}`, {
+        type: recordedType,
+      });
+      const url = URL.createObjectURL(file);
       recordingUrlRef.current = url;
       setRecordingUrl(url);
+      setRecordingFile(file);
+      try {
+        setCanShareRecording(
+          typeof navigator.share === "function" &&
+            (!navigator.canShare || navigator.canShare({ files: [file] })),
+        );
+      } catch {
+        setCanShareRecording(false);
+      }
       setIsRecording(false);
       setIsPromptPlaying(false);
     };
@@ -242,6 +266,23 @@ export default function Home() {
     const nextMode = facingMode === "user" ? "environment" : "user";
     setFacingMode(nextMode);
     await startCamera(nextMode);
+  };
+
+  const shareRecording = async () => {
+    if (!recordingFile || !canShareRecording) return;
+
+    setShareMessage("");
+    try {
+      await navigator.share({
+        files: [recordingFile],
+        title: "Видео из суфлёра",
+        text: "Запись, сделанная в приложении «Суфлёр»",
+      });
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setShareMessage("Не удалось открыть системное меню. Скачайте видео как файл.");
+      }
+    }
   };
 
   const togglePanel = (mode: Exclude<PanelMode, "closed">) => {
@@ -311,7 +352,9 @@ export default function Home() {
           <div className="recording-preview-card">
             <div className="preview-heading">
               <div>
-                <p className="eyebrow">Запись готова</p>
+                <p className="eyebrow">
+                  Запись готова · {recordingFile?.type.toLowerCase().includes("mp4") ? "MP4" : "WEBM"}
+                </p>
                 <h2 id="preview-title">Просмотр видео</h2>
               </div>
               <button
@@ -324,13 +367,19 @@ export default function Home() {
               </button>
             </div>
             <video src={recordingUrl} controls playsInline preload="metadata" />
+            {shareMessage && <p className="share-message" role="status">{shareMessage}</p>}
             <div className="preview-actions">
               <button type="button" onClick={() => setRecordingUrl(null)}>
                 Вернуться к съёмке
               </button>
-              <a href={recordingUrl} download={`orator-${Date.now()}.webm`}>
-                Скачать видео
+              <a className="download-button" href={recordingUrl} download={recordingFile?.name ?? "orator-video.webm"}>
+                Скачать файл
               </a>
+              {canShareRecording && (
+                <button type="button" className="share-button" onClick={() => void shareRecording()}>
+                  Сохранить / поделиться
+                </button>
+              )}
             </div>
           </div>
         </section>
