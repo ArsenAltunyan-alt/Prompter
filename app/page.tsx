@@ -25,6 +25,7 @@ export default function Home() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const promptRef = useRef<HTMLDivElement>(null);
+  const promptPointerStartRef = useRef<number | null>(null);
   const recordingUrlRef = useRef<string | null>(null);
 
   const [cameraStatus, setCameraStatus] =
@@ -132,18 +133,33 @@ export default function Home() {
   useEffect(() => {
     if (!isPromptPlaying) return;
 
+    const prompt = promptRef.current;
+    if (!prompt) return;
+
     let frame = 0;
     let previousTime = performance.now();
+    let targetScrollTop = prompt.scrollTop;
+    let lastAppliedScrollTop = prompt.scrollTop;
 
     const scroll = (currentTime: number) => {
-      const prompt = promptRef.current;
-      if (!prompt) return;
       const delta = (currentTime - previousTime) / 1000;
       previousTime = currentTime;
-      prompt.scrollTop += speed * delta;
+      const maxScrollTop = Math.max(0, prompt.scrollHeight - prompt.clientHeight);
 
-      const reachedEnd =
-        prompt.scrollTop + prompt.clientHeight >= prompt.scrollHeight - 2;
+      if (maxScrollTop <= 1) {
+        setIsPromptPlaying(false);
+        return;
+      }
+
+      if (Math.abs(prompt.scrollTop - lastAppliedScrollTop) > 2) {
+        targetScrollTop = prompt.scrollTop;
+      }
+
+      targetScrollTop = Math.min(maxScrollTop, targetScrollTop + speed * delta);
+      prompt.scrollTop = targetScrollTop;
+      lastAppliedScrollTop = prompt.scrollTop;
+
+      const reachedEnd = targetScrollTop >= maxScrollTop - 0.5;
       if (reachedEnd) {
         setIsPromptPlaying(false);
         return;
@@ -314,7 +330,24 @@ export default function Home() {
         <div
           ref={promptRef}
           className="prompt-scroll"
-          onPointerDown={() => setIsPromptPlaying(false)}
+          onPointerDown={(event) => {
+            if (event.pointerType !== "mouse") {
+              promptPointerStartRef.current = event.clientY;
+            }
+          }}
+          onPointerMove={(event) => {
+            const startY = promptPointerStartRef.current;
+            if (startY !== null && Math.abs(event.clientY - startY) > 6) {
+              promptPointerStartRef.current = null;
+              setIsPromptPlaying(false);
+            }
+          }}
+          onPointerUp={() => {
+            promptPointerStartRef.current = null;
+          }}
+          onPointerCancel={() => {
+            promptPointerStartRef.current = null;
+          }}
           onWheel={() => setIsPromptPlaying(false)}
         >
           <p
