@@ -1,0 +1,483 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+type CameraStatus = "requesting" | "ready" | "error";
+type PanelMode = "closed" | "script" | "settings";
+type FacingMode = "user" | "environment";
+
+const DEFAULT_SCRIPT =
+  "Добро пожаловать! Говорите спокойно и смотрите прямо в объектив.\n\nТекст будет плавно двигаться перед камерой — так вы сможете сохранить естественный зрительный контакт.\n\nСделайте небольшую паузу между мыслями. Улыбнитесь. Вы готовы начать запись.";
+
+const STORAGE_KEY = "orator-teleprompter";
+
+function formatTime(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+export default function Home() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const promptRef = useRef<HTMLDivElement>(null);
+  const recordingUrlRef = useRef<string | null>(null);
+
+  const [cameraStatus, setCameraStatus] =
+    useState<CameraStatus>("requesting");
+  const [cameraMessage, setCameraMessage] = useState(
+    "Разрешите доступ к камере и микрофону",
+  );
+  const [facingMode, setFacingMode] = useState<FacingMode>("user");
+  const [script, setScript] = useState(DEFAULT_SCRIPT);
+  const [speed, setSpeed] = useState(42);
+  const [fontSize, setFontSize] = useState(34);
+  const [windowHeight, setWindowHeight] = useState(220);
+  const [isPromptPlaying, setIsPromptPlaying] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>("closed");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const startCamera = useCallback(
+    async (mode: FacingMode) => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraStatus("error");
+        setCameraMessage("Этот браузер не поддерживает доступ к камере");
+        return;
+      }
+
+      setCameraStatus("requesting");
+      setCameraMessage("Подключаем камеру…");
+      stopCamera();
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: mode },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: true,
+        });
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+        setCameraStatus("ready");
+        setCameraMessage("Камера готова");
+      } catch (error) {
+        const permissionDenied =
+          error instanceof DOMException && error.name === "NotAllowedError";
+        setCameraStatus("error");
+        setCameraMessage(
+          permissionDenied
+            ? "Доступ закрыт. Разрешите камеру и микрофон в настройках браузера."
+            : "Не удалось подключить камеру. Возможно, она занята другим приложением.",
+        );
+      }
+    },
+    [stopCamera],
+  );
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const preferences = JSON.parse(saved) as {
+          script?: string;
+          speed?: number;
+          fontSize?: number;
+          windowHeight?: number;
+        };
+        if (typeof preferences.script === "string") setScript(preferences.script);
+        if (typeof preferences.speed === "number") setSpeed(preferences.speed);
+        if (typeof preferences.fontSize === "number")
+          setFontSize(preferences.fontSize);
+        if (typeof preferences.windowHeight === "number")
+          setWindowHeight(preferences.windowHeight);
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
+    void startCamera("user");
+
+    return () => {
+      stopCamera();
+      if (recordingUrlRef.current) URL.revokeObjectURL(recordingUrlRef.current);
+    };
+  }, [startCamera, stopCamera]);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ script, speed, fontSize, windowHeight }),
+    );
+  }, [script, speed, fontSize, windowHeight]);
+
+  useEffect(() => {
+    if (!isPromptPlaying) return;
+
+    let frame = 0;
+    let previousTime = performance.now();
+
+    const scroll = (currentTime: number) => {
+      const prompt = promptRef.current;
+      if (!prompt) return;
+      const delta = (currentTime - previousTime) / 1000;
+      previousTime = currentTime;
+      prompt.scrollTop += speed * delta;
+
+      const reachedEnd =
+        prompt.scrollTop + prompt.clientHeight >= prompt.scrollHeight - 2;
+      if (reachedEnd) {
+        setIsPromptPlaying(false);
+        return;
+      }
+      frame = requestAnimationFrame(scroll);
+    };
+
+    frame = requestAnimationFrame(scroll);
+    return () => cancelAnimationFrame(frame);
+  }, [isPromptPlaying, speed]);
+
+  useEffect(() => {
+    if (!isRecording) return;
+    const timer = window.setInterval(
+      () => setRecordingSeconds((seconds) => seconds + 1),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [isRecording]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        event.code === "Space" &&
+        target?.tagName !== "TEXTAREA" &&
+        target?.tagName !== "INPUT"
+      ) {
+        event.preventDefault();
+        setIsPromptPlaying((playing) => !playing);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const resetPrompt = () => {
+    if (promptRef.current) promptRef.current.scrollTop = 0;
+    setIsPromptPlaying(false);
+  };
+
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop();
+    }
+  }, []);
+
+  const startRecording = () => {
+    const stream = streamRef.current;
+    if (!stream || cameraStatus !== "ready" || !window.MediaRecorder) return;
+
+    if (recordingUrlRef.current) {
+      URL.revokeObjectURL(recordingUrlRef.current);
+      recordingUrlRef.current = null;
+      setRecordingUrl(null);
+    }
+
+    const supportedType = [
+      "video/webm;codecs=vp9,opus",
+      "video/webm;codecs=vp8,opus",
+      "video/webm",
+    ].find((type) => MediaRecorder.isTypeSupported(type));
+
+    const recorder = new MediaRecorder(
+      stream,
+      supportedType ? { mimeType: supportedType } : undefined,
+    );
+    chunksRef.current = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunksRef.current.push(event.data);
+    };
+    recorder.onstop = () => {
+      const blob = new Blob(chunksRef.current, {
+        type: recorder.mimeType || "video/webm",
+      });
+      const url = URL.createObjectURL(blob);
+      recordingUrlRef.current = url;
+      setRecordingUrl(url);
+      setIsRecording(false);
+    };
+    recorderRef.current = recorder;
+    recorder.start(1000);
+    setRecordingSeconds(0);
+    setIsRecording(true);
+    setPanelMode("closed");
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) stopRecording();
+    else startRecording();
+  };
+
+  const switchCamera = async () => {
+    if (isRecording) stopRecording();
+    const nextMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(nextMode);
+    await startCamera(nextMode);
+  };
+
+  const togglePanel = (mode: Exclude<PanelMode, "closed">) => {
+    setPanelMode((current) => (current === mode ? "closed" : mode));
+  };
+
+  const wordCount = script.trim() ? script.trim().split(/\s+/).length : 0;
+
+  return (
+    <main className={`app-shell ${panelMode !== "closed" ? "panel-open" : ""}`}>
+      <div className="camera-layer" aria-hidden={cameraStatus !== "ready"}>
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className={facingMode === "user" ? "mirrored" : ""}
+        />
+        <div className="camera-vignette" />
+      </div>
+
+      <header className="topbar">
+        <div className="brand" aria-label="Оратор">
+          <span className="brand-mark"><i /></span>
+          <span>ОРАТОР</span>
+        </div>
+        <div className="topbar-actions">
+          <div className={`camera-state ${cameraStatus}`} role="status">
+            <span />
+            {cameraStatus === "ready"
+              ? "В эфире"
+              : cameraStatus === "requesting"
+                ? "Подключение"
+                : "Нет камеры"}
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => void switchCamera()}
+            disabled={cameraStatus !== "ready"}
+            aria-label="Переключить камеру"
+            title="Переключить камеру"
+          >
+            ↻
+          </button>
+        </div>
+      </header>
+
+      <section
+        className="teleprompter-window"
+        style={{ height: `${windowHeight}px` }}
+        aria-label="Окно суфлёра"
+      >
+        <span className="eye-line left" aria-hidden="true" />
+        <span className="eye-line right" aria-hidden="true" />
+        <div ref={promptRef} className="prompt-scroll">
+          <p style={{ fontSize: `${fontSize}px` }}>
+            {script || "Введите текст сценария, чтобы начать…"}
+          </p>
+          <div className="prompt-end">КОНЕЦ СЦЕНАРИЯ</div>
+        </div>
+        <div className="prompt-status">
+          <span>{isPromptPlaying ? "Текст движется" : "Суфлёр на паузе"}</span>
+          <button type="button" onClick={resetPrompt} aria-label="Вернуть текст в начало">
+            ↶&nbsp; В начало
+          </button>
+        </div>
+      </section>
+
+      {cameraStatus !== "ready" && (
+        <section className="permission-card" aria-live="polite">
+          <div className="permission-icon" aria-hidden="true">
+            <span />
+          </div>
+          <p className="eyebrow">Камера</p>
+          <h1>{cameraStatus === "requesting" ? "Открываем объектив" : "Нужен доступ"}</h1>
+          <p>{cameraMessage}</p>
+          {cameraStatus === "error" && (
+            <button type="button" className="primary-button" onClick={() => void startCamera(facingMode)}>
+              Попробовать снова
+            </button>
+          )}
+        </section>
+      )}
+
+      {isRecording && (
+        <div className="recording-timer" role="status">
+          <span /> REC&nbsp; {formatTime(recordingSeconds)}
+        </div>
+      )}
+
+      {recordingUrl && !isRecording && (
+        <div className="download-toast">
+          <span>Запись готова</span>
+          <a href={recordingUrl} download={`orator-${Date.now()}.webm`}>
+            Скачать видео
+          </a>
+          <button type="button" onClick={() => setRecordingUrl(null)} aria-label="Скрыть сообщение">
+            ×
+          </button>
+        </div>
+      )}
+
+      <nav className="control-dock" aria-label="Управление записью и суфлёром">
+        <button
+          type="button"
+          className={panelMode === "script" ? "dock-button active" : "dock-button"}
+          onClick={() => togglePanel("script")}
+          aria-label="Открыть сценарий"
+        >
+          <span className="dock-icon lines" aria-hidden="true">≡</span>
+          <small>Сценарий</small>
+        </button>
+
+        <button
+          type="button"
+          className="prompt-button"
+          onClick={() => setIsPromptPlaying((playing) => !playing)}
+          aria-label={isPromptPlaying ? "Поставить суфлёр на паузу" : "Запустить суфлёр"}
+        >
+          <span aria-hidden="true">{isPromptPlaying ? "Ⅱ" : "▶"}</span>
+          <small>{isPromptPlaying ? "Пауза" : "Старт"}</small>
+        </button>
+
+        <button
+          type="button"
+          className={isRecording ? "record-button recording" : "record-button"}
+          onClick={toggleRecording}
+          disabled={cameraStatus !== "ready" || typeof MediaRecorder === "undefined"}
+          aria-label={isRecording ? "Остановить запись" : "Начать запись"}
+        >
+          <span aria-hidden="true" />
+        </button>
+
+        <button
+          type="button"
+          className={panelMode === "settings" ? "dock-button active" : "dock-button"}
+          onClick={() => togglePanel("settings")}
+          aria-label="Открыть настройки"
+        >
+          <span className="dock-icon sliders" aria-hidden="true">☷</span>
+          <small>Настройки</small>
+        </button>
+      </nav>
+
+      <aside className={`editor-panel ${panelMode !== "closed" ? "open" : ""}`} aria-hidden={panelMode === "closed"}>
+        <div className="panel-handle" aria-hidden="true" />
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">{panelMode === "settings" ? "Отображение" : "Ваш материал"}</p>
+            <h2>{panelMode === "settings" ? "Настройки суфлёра" : "Сценарий"}</h2>
+          </div>
+          <button type="button" onClick={() => setPanelMode("closed")} aria-label="Закрыть панель">
+            ×
+          </button>
+        </div>
+
+        {panelMode === "script" && (
+          <div className="script-editor">
+            <label htmlFor="script-text">Текст для чтения</label>
+            <textarea
+              id="script-text"
+              value={script}
+              onChange={(event) => {
+                setScript(event.target.value);
+                resetPrompt();
+              }}
+              placeholder="Вставьте или напишите ваш текст…"
+              autoFocus
+            />
+            <div className="editor-meta">
+              <span>{wordCount} слов</span>
+              <span>Сохранено на устройстве</span>
+            </div>
+            <div className="editor-actions">
+              <button type="button" onClick={() => setScript("")}>Очистить</button>
+              <button type="button" className="primary-button" onClick={() => setPanelMode("closed")}>
+                Готово
+              </button>
+            </div>
+          </div>
+        )}
+
+        {panelMode === "settings" && (
+          <div className="settings-list">
+            <label className="range-setting">
+              <span>
+                <b>Скорость текста</b>
+                <output>{(speed / 42).toFixed(1)}×</output>
+              </span>
+              <input
+                type="range"
+                min="14"
+                max="98"
+                step="2"
+                value={speed}
+                onChange={(event) => setSpeed(Number(event.target.value))}
+              />
+              <small><i>Медленно</i><i>Быстро</i></small>
+            </label>
+            <label className="range-setting">
+              <span>
+                <b>Размер шрифта</b>
+                <output>{fontSize} px</output>
+              </span>
+              <input
+                type="range"
+                min="22"
+                max="64"
+                step="2"
+                value={fontSize}
+                onChange={(event) => setFontSize(Number(event.target.value))}
+              />
+              <small><i>Меньше</i><i>Больше</i></small>
+            </label>
+            <label className="range-setting">
+              <span>
+                <b>Высота окна</b>
+                <output>{windowHeight} px</output>
+              </span>
+              <input
+                type="range"
+                min="150"
+                max="380"
+                step="10"
+                value={windowHeight}
+                onChange={(event) => setWindowHeight(Number(event.target.value))}
+              />
+              <small><i>Компактно</i><i>Просторно</i></small>
+            </label>
+            <button type="button" className="reset-settings" onClick={() => {
+              setSpeed(42);
+              setFontSize(34);
+              setWindowHeight(220);
+            }}>
+              ↶&nbsp; Сбросить настройки
+            </button>
+          </div>
+        )}
+      </aside>
+    </main>
+  );
+}
