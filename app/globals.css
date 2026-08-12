@@ -16,6 +16,7 @@ body {
   margin: 0;
   min-height: 100%;
   background: #050506;
+  touch-action: manipulation;
 }
 
 body {
@@ -34,6 +35,7 @@ input {
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 button:focus-visible,
@@ -79,28 +81,7 @@ input:focus-visible {
     radial-gradient(circle, transparent 45%, rgba(0, 0, 0, 0.28) 100%);
 }
 
-.topbar {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: calc(64px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 18px 0;
-  border-bottom: 1px solid var(--line);
-  background: rgba(7, 7, 8, 0.48);
-  backdrop-filter: blur(18px);
-}
-
-.brand,
-.topbar-actions,
-.camera-state,
-.prompt-status,
 .recording-timer,
-.download-toast,
 .control-dock,
 .panel-heading,
 .range-setting > span,
@@ -111,101 +92,19 @@ input:focus-visible {
   align-items: center;
 }
 
-.brand {
-  gap: 10px;
-  font-size: 13px;
-  font-weight: 760;
-  letter-spacing: 0.18em;
-}
-
-.brand-mark {
-  position: relative;
-  display: grid;
-  width: 25px;
-  height: 25px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-}
-
-.brand-mark::before,
-.brand-mark::after {
-  position: absolute;
-  width: 6px;
-  height: 1px;
-  content: "";
-  background: var(--ink);
-}
-
-.brand-mark::before { left: -3px; }
-.brand-mark::after { right: -3px; }
-
-.brand-mark i {
-  display: block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px rgba(255, 91, 74, 0.6);
-}
-
-.topbar-actions {
-  gap: 9px;
-}
-
-.camera-state {
-  gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  color: var(--muted);
-  background: rgba(8, 8, 9, 0.42);
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
-
-.camera-state span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #888;
-}
-
-.camera-state.ready span { background: #72ef9b; box-shadow: 0 0 8px #72ef9b; }
-.camera-state.error span { background: var(--accent); }
-.camera-state.requesting span { animation: pulse 1.2s infinite; }
-
-.icon-button,
 .panel-heading button,
-.download-toast button,
-.prompt-status button {
+.preview-close,
+.bottom-prompt-status button {
   border: 0;
   color: inherit;
   background: transparent;
   cursor: pointer;
 }
 
-.icon-button {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  font-size: 20px;
-}
-
-.icon-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
-}
-
 .teleprompter-window {
   position: absolute;
   z-index: 10;
-  top: calc(64px + env(safe-area-inset-top));
+  top: 0;
   left: 0;
   right: 0;
   min-height: 150px;
@@ -249,7 +148,8 @@ input:focus-visible {
 .prompt-scroll p {
   max-width: 920px;
   margin: 0 auto;
-  padding: 34px clamp(28px, 7vw, 100px) 44px;
+  padding-right: clamp(28px, 7vw, 100px);
+  padding-left: clamp(28px, 7vw, 100px);
   color: white;
   font-weight: 680;
   line-height: 1.34;
@@ -282,21 +182,30 @@ input:focus-visible {
 .eye-line.left { left: 0; }
 .eye-line.right { right: 0; }
 
-.prompt-status {
+.bottom-prompt-status {
   position: absolute;
-  z-index: 5;
+  z-index: 19;
   right: 16px;
-  bottom: 10px;
+  bottom: calc(110px + env(safe-area-inset-bottom));
   left: 16px;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  max-width: 430px;
+  margin: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   color: rgba(255, 255, 255, 0.42);
+  background: rgba(8, 8, 9, 0.62);
   font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  backdrop-filter: blur(14px);
 }
 
-.prompt-status button {
+.bottom-prompt-status button {
   padding: 4px;
   color: rgba(255, 255, 255, 0.68);
   font-size: 10px;
@@ -386,7 +295,7 @@ input:focus-visible {
 .recording-timer {
   position: absolute;
   z-index: 16;
-  bottom: calc(120px + env(safe-area-inset-bottom));
+  bottom: calc(154px + env(safe-area-inset-bottom));
   left: 50%;
   gap: 6px;
   padding: 8px 12px;
@@ -408,26 +317,91 @@ input:focus-visible {
   animation: pulse 1s infinite;
 }
 
-.download-toast {
+.recording-preview {
   position: absolute;
-  z-index: 25;
-  right: 16px;
-  bottom: calc(118px + env(safe-area-inset-bottom));
-  left: 16px;
-  gap: 10px;
-  max-width: 430px;
-  margin: auto;
-  padding: 12px 14px;
-  border: 1px solid rgba(114, 239, 155, 0.28);
-  background: rgba(15, 22, 17, 0.93);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-  font-size: 12px;
-  backdrop-filter: blur(16px);
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  place-items: center;
+  background: rgba(4, 4, 5, 0.92);
+  backdrop-filter: blur(24px);
 }
 
-.download-toast span { color: rgba(255, 255, 255, 0.62); }
-.download-toast a { margin-left: auto; color: #8df3ad; font-weight: 730; text-decoration: none; }
-.download-toast button { padding: 0 2px; font-size: 19px; }
+.recording-preview-card {
+  width: min(100%, 760px);
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(18, 18, 20, 0.98);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.55);
+}
+
+.preview-heading,
+.preview-actions,
+.camera-switch-setting {
+  display: flex;
+  align-items: center;
+}
+
+.preview-heading {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.preview-heading h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.035em;
+}
+
+.preview-close {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.recording-preview video {
+  display: block;
+  width: 100%;
+  max-height: 62svh;
+  border-radius: 10px;
+  background: #000;
+  object-fit: contain;
+}
+
+.preview-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.preview-actions button,
+.preview-actions a {
+  display: grid;
+  min-height: 44px;
+  padding: 0 16px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 720;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.preview-actions a {
+  border-color: var(--accent);
+  color: #120e0d;
+  background: var(--accent);
+}
 
 .control-dock {
   position: absolute;
@@ -613,7 +587,8 @@ input:focus-visible {
 }
 
 .editor-actions > button:not(.primary-button),
-.reset-settings {
+.reset-settings,
+.camera-switch-setting {
   min-height: 42px;
   padding: 0 14px;
   border: 1px solid var(--line);
@@ -681,17 +656,47 @@ input:focus-visible {
   margin-top: 2px;
 }
 
+.camera-switch-setting {
+  width: 100%;
+  gap: 12px;
+  text-align: left;
+}
+
+.camera-switch-setting > span:first-child {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border-radius: 50%;
+  color: #15121d;
+  background: var(--violet);
+  font-size: 18px;
+}
+
+.camera-switch-setting > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.camera-switch-setting small {
+  display: block;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.camera-switch-setting:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
 
 @media (min-width: 860px) {
-  .topbar {
-    padding-right: 28px;
-    padding-left: 28px;
-  }
-
   .app-shell.panel-open .teleprompter-window {
     right: min(360px, 28vw);
   }
@@ -743,19 +748,19 @@ input:focus-visible {
     left: calc((100% - min(360px, 28vw)) / 2);
   }
 
-  .app-shell.panel-open .download-toast {
+  .app-shell.panel-open .bottom-prompt-status {
     right: calc(min(360px, 28vw) + 16px);
-    left: 16px;
   }
 }
 
 @media (max-width: 390px) {
-  .camera-state { padding: 0 8px; }
   .control-dock { gap: 8px; padding-right: 10px; padding-left: 10px; }
   .record-button { width: 66px; height: 66px; }
   .record-button > span { width: 49px; height: 49px; }
   .dock-button, .prompt-button { min-width: 48px; }
   .prompt-scroll p { padding-right: 24px; padding-left: 24px; }
+  .preview-actions { flex-direction: column-reverse; }
+  .preview-actions button, .preview-actions a { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
