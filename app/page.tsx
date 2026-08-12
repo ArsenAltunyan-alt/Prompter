@@ -136,12 +136,11 @@ export default function Home() {
     const prompt = promptRef.current;
     if (!prompt) return;
 
-    let frame = 0;
     let previousTime = performance.now();
-    let targetScrollTop = prompt.scrollTop;
-    let lastAppliedScrollTop = prompt.scrollTop;
+    let fractionalPixels = 0;
 
-    const scroll = (currentTime: number) => {
+    const scroll = () => {
+      const currentTime = performance.now();
       const delta = (currentTime - previousTime) / 1000;
       previousTime = currentTime;
       const maxScrollTop = Math.max(0, prompt.scrollHeight - prompt.clientHeight);
@@ -151,24 +150,21 @@ export default function Home() {
         return;
       }
 
-      if (Math.abs(prompt.scrollTop - lastAppliedScrollTop) > 2) {
-        targetScrollTop = prompt.scrollTop;
-      }
+      fractionalPixels += speed * delta;
+      const pixelsToMove = Math.floor(fractionalPixels);
+      if (pixelsToMove < 1) return;
 
-      targetScrollTop = Math.min(maxScrollTop, targetScrollTop + speed * delta);
-      prompt.scrollTop = targetScrollTop;
-      lastAppliedScrollTop = prompt.scrollTop;
+      fractionalPixels -= pixelsToMove;
+      prompt.scrollTop = Math.min(maxScrollTop, prompt.scrollTop + pixelsToMove);
 
-      const reachedEnd = targetScrollTop >= maxScrollTop - 0.5;
+      const reachedEnd = prompt.scrollTop >= maxScrollTop - 1;
       if (reachedEnd) {
         setIsPromptPlaying(false);
-        return;
       }
-      frame = requestAnimationFrame(scroll);
     };
 
-    frame = requestAnimationFrame(scroll);
-    return () => cancelAnimationFrame(frame);
+    const timer = window.setInterval(scroll, 40);
+    return () => window.clearInterval(timer);
   }, [isPromptPlaying, speed]);
 
   useEffect(() => {
